@@ -1,0 +1,147 @@
+services:
+  # PostgreSQL Database for Kong
+  kong-database:
+    image: postgres:13
+    container_name: kong-postgres
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+    networks:
+      - kong-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Kong Database Migration
+  kong-migrations:
+    image: kong:latest
+    container_name: kong-migrations
+    command: kong migrations bootstrap
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+    networks:
+      - kong-net
+    restart: on-failure
+
+  # Kong Gateway with AI Plugins
+  kong-gateway:
+    image: kong:latest
+    container_name: kong-gateway
+    user: "${KONG_USER:-kong}"
+    depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migrations:
+        condition: service_completed_successfully
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+      # Enable AI plugins and other required plugins
+      KONG_PLUGINS: bundled,ai-proxy,ai-prompt-template,ai-prompt-decorator,ai-prompt-guard,ai-request-transformer,ai-response-transformer,prometheus,rate-limiting,key-auth
+      # Required for AI plugins
+      KONG_AI_PROXY_ENABLED: "true"
+    ports:
+      - "8000:8000"  # Proxy port
+      - "8001:8001"  # Admin API port
+      - "8100:8100"  # Status port for metrics
+      - "8002:8002"   # Kong Manager
+    networks:
+      - kong-net
+    volumes:
+      - ./kong-config:/opt/kong
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: kong-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - kong-net
+    depends_on:
+      - kong-gateway
+    restart: unless-stopped
+
+  # Grafana for analytics dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: kong-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - kong-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Sample AI Backend (Mock service for testing)
+  ai-mock-service:
+    image: mockserver/mockserver:latest
+    container_name: ai-mock-service
+    environment:
+      MOCKSERVER_PORT: 8080
+      MOCKSERVER_LOG_LEVEL: INFO
+    ports:
+      - "1080:1080"
+    volumes:
+      - ./mock-config:/config
+    networks:
+      - kong-net
+    restart: unless-stopped
+
+networks:
+  kong-net:
+    driver: bridge
+
+volumes:
+  kong_data:
+  prometheus_data:
+  grafana_data:
