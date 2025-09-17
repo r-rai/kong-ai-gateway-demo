@@ -18,7 +18,8 @@
 
 2. **Clone Git Repo**:
    ```bash
-   git clonehttps://github.com/r-rai/kong-ai-gateway-demo.git```
+   git clone https://github.com/r-rai/kong-ai-gateway-demo.git
+   cd kong-ai-gateway-demo```
 
 3. **Configure environment variables**:
    Edit `.env` file and add your OpenAI API key:
