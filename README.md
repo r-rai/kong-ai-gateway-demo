@@ -74,20 +74,20 @@ curl --location 'http://localhost:8001/services/' \
 curl --location 'http://localhost:8001/routes' \
 --header 'Content-Type: application/json' \
 --data '{
-    "name": "ai-demo-route",
+    "name": "ai-chat-route",
     "paths": ["/ai"],
     "service": {"name": "openai-service"}
   }'
 ```
 
-#### Configure AI Proxy Plugin
+#### Configure AI Proxy Plugin (replace YOUR_OPENAI_KEY_HERE with you open API Key)
 
 ```bash
 curl --location 'http://localhost:8001/plugins/' \
 --header 'Content-Type: application/json' \
 --data '{
     "name": "ai-proxy",
-    "route": {"name": "ai-demo-route"},
+    "route": {"name": "ai-chat-route"},
     "config": {
       "route_type": "llm/v1/chat",
       "model": {
