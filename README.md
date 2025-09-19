@@ -37,12 +37,12 @@
    # after running of kong-migration bring down everything
    docker compose down
    #start all services
-   docker-compose up -d
+   docker compose up -d
    ```
 
 2. **Check service health**:
    ```bash
-   docker-compose ps
+   docker ps
    ```
 
 3. **Verify Kong Gateway is running**:
